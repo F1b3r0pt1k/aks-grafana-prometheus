@@ -1,0 +1,3 @@
+rg_name = "aks-lab-azdo-rg"
+location = "eastus2"
+base_name = "aks-lab-azdo"
