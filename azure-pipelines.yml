@@ -1,0 +1,108 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  bkstrgrg: 'terraform-rg'
+  bkstrg: 'stg196c'
+  bkcontainer: 'azure-devops'
+  bkstrgkey: 'aks-lab.terraform.tfstate'
+  aksresourcegroup: 'aks-lab-azdo-rg'
+  aksclustername: 'aks-lab-azdo-aks'
+
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate
+        continueOnError: false
+        steps:
+          - task: TerraformInstaller@1
+            displayName: tfInstall
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV4@4
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'Azure subscription 1(f5cdbf92-abd6-4e78-ad23-e0593e9536e6)'
+              backendAzureRmResourceGroupName: 'terraform-rg'
+              backendAzureRmStorageAccountName: 'stg196c'
+              backendAzureRmContainerName: 'azure-devops'
+              backendAzureRmKey: 'aks-lab.terraform.tfstate'
+          - task: TerraformTaskV4@4
+            displayName: validate
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate')
+    dependsOn: tfvalidate
+    jobs:
+      - job: apply
+        steps:
+          - task: TerraformInstaller@1
+            displayName: tfInstall
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV4@4
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'Azure subscription 1(f5cdbf92-abd6-4e78-ad23-e0593e9536e6)'
+              backendAzureRmResourceGroupName: 'terraform-rg'
+              backendAzureRmStorageAccountName: 'stg196c'
+              backendAzureRmContainerName: 'azure-devops'
+              backendAzureRmKey: 'devpipeline.terraform.tfstate'
+          - task: TerraformTaskV4@4
+            displayName: plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              environmentServiceNameAzureRM: 'Azure subscription 1(f5cdbf92-abd6-4e78-ad23-e0593e9536e6)'
+          - task: TerraformTaskV4@4
+            displayName: apply
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: 'Azure subscription 1(f5cdbf92-abd6-4e78-ad23-e0593e9536e6)'
+  - stage: grafanapromdeploy
+    condition: succeeded('tfdeploy')
+    dependsOn: tfdeploy
+    jobs:
+      - job: grafana
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: 'Azure subscription 1(f5cdbf92-abd6-4e78-ad23-e0593e9536e6)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group aks-lab-azdo-rg \
+                  --name aks-lab-azdo-aks
+          - task: HelmInstaller@0
+            inputs:
+              helmVersion: '2.14.1'
+              installKubectl: true
+          - task: CmdLine@2
+            inputs:
+              script: |
+                helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+                
+                helm repo update
+          - task: CmdLine@2
+            inputs:
+              script: |
+                helm install prometheus \
+                  prometheus-community/kube-prometheus-stack \
+                  --namespace monitoring \
+                  --create-namespace
