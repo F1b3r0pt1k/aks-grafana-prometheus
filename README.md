@@ -1,4 +1,4 @@
-This Terraform deployment provisions an AKS cluster for a lab environment. There are two YAML pipelines for Azure DevOps that provision and destroy the cluster. 
+This Terraform deployment provisions an AKS cluster for test. There are two YAML pipelines for Azure DevOps that provision and destroy the cluster. 
 
 The azure-pipelines.yml does the following:
 
