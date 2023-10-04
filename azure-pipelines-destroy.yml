@@ -12,7 +12,9 @@ variables:
   bkstrgrg: 'terraform-rg'
   bkstrg: 'stg196c'
   bkcontainer: 'azure-devops'
-  bkstrgkey: 'aks-grafana-prometheus.terraform.tfstate'
+  bkstrgkey: 'aks-lab.terraform.tfstate'
+  aksresourcegroup: 'aks-lab-azdo-rg'
+  aksclustername: 'aks-lab-azdo-aks'
 
 stages:
   - stage: tfdestroy
